@@ -1,0 +1,1561 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editor de Cifras A4 - Avançado</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <style>
+        /* ========================================================= */
+        /* CSS: Estilos do Editor de Cifras e Responsividade */
+        /* ========================================================= */
+        
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Playfair+Display:ital,wght@0,400..900;1,400..900;1,400..900&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Cinza claro de fundo */
+            height: 100vh;
+            display: flex; 
+            overflow: hidden; 
+        }
+        
+        /* Variáveis CSS para controle dinâmico */
+        :root {
+            --chord-font-size: 12pt; 
+            --content-font-size: 12pt; 
+            --line-spacing: 1.0; /* Variável para espaçamento de linha */
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Estilo A4 Fixo */
+        /* ------------------------------------------------------------------ */
+        #paper-sheet {
+            /* Dimensões A4: 210mm x 297mm (Tamanho FIXO) */
+            width: 210mm;
+            height: 297mm;
+            
+            background-color: white;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            
+            /* Permite a rolagem do texto DENTRO da folha, mantendo o tamanho FIXO */
+            overflow-y: auto; 
+            
+            outline: none; 
+            
+            /* CRÍTICO: Usa a variável de espaçamento de linha */
+            line-height: var(--line-spacing); 
+            tab-size: 4;
+            user-select: text;
+            
+            /* PADDING inicial para simular as margens */
+            padding: 10mm 5mm 10mm 5mm; 
+            
+            /* Garante que o conteúdo use a fonte global */
+            font-size: var(--content-font-size); 
+        }
+        
+        /* O container que centraliza a folha na tela */
+        .a4-container {
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; /* Alinha o topo do papel no topo da tela */
+            padding: 2rem 1rem;
+        }
+
+        /* O editor (APENAS conteúdo) fica dentro da folha */
+        .editor-area {
+            white-space: normal; 
+            caret-color: #3b82f6; 
+            min-height: 100%; /* Ocupa toda a altura da folha */
+            padding: 0; 
+            border: none; 
+            outline: none; 
+        }
+        
+        /* O padding é substituído pelo padding da folha A4. */
+        .editor-visual-wrapper {
+            /* AJUSTADO: Ajusta o padding-left para dar espaço ao novo margin-left do control-group */
+            padding-left: 4rem; /* Ajuste para acomodar a barra de controle sem interferir no texto */
+        }
+        
+        /* Esconde a seta de incremento/decremento em inputs numéricos */
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+        
+        /* ------------------------------------------------------------------ */
+        /* Estilos do Control Group (Botões de Linha) */
+        /* ------------------------------------------------------------------ */
+        .line-wrapper {
+            display: flex;
+            align-items: flex-start;
+            gap: 5px; 
+            padding-left: 0;
+            margin-bottom: 0; 
+            position: relative; /* CRÍTICO: Define o contexto de posicionamento */
+        }
+
+        .control-group {
+            min-width: 50px; /* Largura mínima para os botões */
+            /* height: 100%; REMOVIDO: Não necessário com position: absolute */
+            display: flex;
+            gap: 5px; /* Espaço entre os botões */
+            padding-top: 5px;
+            justify-content: flex-start;
+            align-items: flex-start;
+            user-select: none;
+            
+            /* CRÍTICO: Tira o elemento do fluxo do documento para não empurrar o texto */
+            position: absolute;
+            left: -4rem; 
+            
+            /* REMOVIDO: margin-left: -4rem; */
+        }
+        
+        /* Estilo padrão: botões ocultos */
+        .control-group .line-control,
+        .control-group .line-remove-control,
+        .control-group .line-select,
+        .control-group .line-undo-control { 
+            opacity: 0;
+            transition: opacity 0.2s;
+            color: #4b5563; 
+        }
+
+        /* O checkbox selecionado SEMPRE deve estar visível */
+        .control-group .line-select:checked {
+            opacity: 1;
+        }
+        
+        /* Garante que todos os controles sejam visíveis ao passar o mouse na linha */
+        .line-wrapper:hover .control-group .line-control,
+        .line-wrapper:hover .control-group .line-remove-control,
+        .line-wrapper:hover .control-group .line-select,
+        .line-wrapper:hover .control-group .line-undo-control { 
+            opacity: 1;
+        }
+
+        .line-content, .chord-line-container, .section-header {
+            /* Usa fonte monoespaçada para alinhamento */
+            font-family: 'Monaco', 'Courier New', monospace; 
+            font-size: var(--content-font-size);
+
+            margin: 2px 0; 
+            padding: 0;
+            flex-grow: 1; 
+            line-height: inherit; /* Herda o line-height global */
+            white-space: pre-wrap; 
+        }
+
+        .chord-container {
+            display: inline;
+            position: relative;
+        }
+        .chord {
+            font-weight: 700; 
+            color: #000000; 
+            background: none; 
+            border: none; 
+            /* Usa variável para tamanho da cifra */
+            font-size: var(--chord-font-size); 
+            line-height: 1; 
+            padding: 0 2px; 
+            cursor: text;
+            user-select: none;
+        }
+
+        .section-header {
+            font-weight: bold;
+            font-style: italic;
+            color: #4f46e5; 
+            text-align: center;
+            width: 100%;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Estilos de Responsividade e Toggle (AJUSTADO) */
+        /* ------------------------------------------------------------------ */
+        
+        /* Sidebar - Base */
+        #controls {
+            transition: transform 0.3s ease-in-out, width 0.3s ease-in-out, padding 0.3s ease-in-out;
+            width: 350px; 
+            z-index: 50; 
+        }
+        
+        /* Botão de Toggle - Base (Sempre visível, z-index alto) */
+        #toggle-button {
+            position: fixed;
+            top: 1rem; 
+            z-index: 60; 
+            transition: left 0.3s ease-in-out, right 0.3s ease-in-out; 
+            display: block !important; /* CRÍTICO: Sempre visível */
+            cursor: pointer;
+            left: 1rem; /* Posição padrão quando oculta */
+        }
+
+        @media (max-width: 1023px) { 
+            /* Configuração Mobile: Sidebar Fixa e Oculta */
+            #controls {
+                position: fixed;
+                height: 100%;
+                transform: translateX(-100%); 
+            }
+            body:not(.sidebar-hidden) #controls {
+                transform: translateX(0);
+            }
+            
+            /* Posição Mobile (Sidebar Oculta): Fica na Esquerda */
+            body.sidebar-hidden #toggle-button {
+                left: 1rem; 
+                right: unset;
+            }
+            
+            /* CRÍTICO: Posição Mobile (Sidebar VISÍVEL): Fica na Direita para evitar sair da tela */
+            body:not(.sidebar-hidden) #toggle-button {
+                left: unset; 
+                right: 1rem; 
+            }
+            
+            /* Estilo de blur que o usuário mencionou (apenas em mobile/sidebar aberta) */
+            body:not(.sidebar-hidden) main {
+                filter: blur(2px); 
+                pointer-events: none;
+            }
+            .editor-visual-wrapper {
+                 padding-left: 1rem;
+            }
+            /* AJUSTE PARA MOBILE (quando o padding-left do wrapper é 1rem) */
+            .control-group {
+                position: absolute;
+                left: -1rem; /* Ajustado para corresponder ao padding-left do wrapper mobile */
+                min-width: 30px; 
+                gap: 5px; /* Volta o gap menor em mobile */
+            }
+            .line-wrapper {
+                gap: 2px;
+            }
+            /* Em mobile, a folha A4 ocupa o máximo que pode, mas mantém a proporção */
+            #paper-sheet {
+                width: 95vw;
+                height: calc(95vw * 297 / 210); /* Mantém proporção A4 */
+                max-width: 210mm;
+                max-height: 297mm;
+            }
+        }
+        
+        @media (min-width: 1024px) { 
+            /* Configuração Desktop: Sidebar Estática */
+            #controls {
+                position: static;
+                transform: translateX(0) !important; 
+            }
+            
+            body.sidebar-hidden #controls { 
+                width: 0;
+                padding: 0;
+                overflow: hidden;
+            }
+            
+            /* Posição Desktop (Sidebar Oculta): Fica na Esquerda */
+            body.sidebar-hidden #toggle-button {
+                left: 1rem;
+                right: unset;
+            }
+
+            /* Posição Desktop (Sidebar VISÍVEL): Fica à direita da barra de 350px */
+            body:not(.sidebar-hidden) #toggle-button {
+                left: 366px; /* 350px (largura da barra) + 1rem (margem) */
+                right: unset;
+            }
+        }
+        
+        /* ========================================================= */
+        /* NOVO CSS: Notificação de Copiado */
+        /* ========================================================= */
+        #notification {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            transition: transform 0.3s ease-in-out, opacity 0.3s ease-in-out;
+            transform: translateX(100%); /* Inicialmente fora da tela (direita) */
+            opacity: 0;
+        }
+        #notification.show {
+            transform: translateX(0); /* Entra na tela */
+            opacity: 1;
+        }
+
+        /* ========================================================= */
+        /* CSS: Removido @media print */
+        /* ========================================================= */
+    </style>
+</head>
+
+<body>
+    
+    <button id="toggle-button" onclick="toggleSidebar()" class="p-2 bg-indigo-600 text-white rounded-full shadow-lg transition duration-300 hover:bg-indigo-700">
+        &#x25C0; Esconder Menu
+    </button>
+    
+    <aside id="controls" class="bg-white p-4 shadow-2xl overflow-y-auto lg:block">
+        <h2 class="text-xl font-bold text-gray-800 mb-4 border-b pb-2">Controles da Cifra</h2>
+        
+        <div class="mb-4 border-b pt-2 pb-2">
+            <h3 class="font-bold text-base mb-2 text-gray-700 flex items-center">
+                <i data-lucide="wrench" class="w-4 h-4 mr-2"></i>
+                Ferramentas de Linha
+            </h3>
+            <div class="grid grid-cols-2 gap-2 mb-2">
+                <button onclick="formatSelectedLinesAsChord()" class="px-2 py-1 bg-yellow-500 text-white text-sm rounded-lg hover:bg-yellow-600 transition duration-150">
+                    <i data-lucide="music" class="inline-block w-4 h-4 mr-1"></i>
+                    Cifra (Manual)
+                </button>
+                
+                <button onclick="undoAllSelectedChordFormats()" class="px-2 py-1 bg-gray-500 text-white text-sm rounded-lg hover:bg-gray-600 transition duration-150">
+                    <i data-lucide="rotate-ccw" class="inline-block w-4 h-4 mr-1"></i>
+                    Desfazer (Manual)
+                </button>
+                
+                </div>
+
+            <div class="mb-2 pt-1">
+                <div id="margin-header" class="font-bold text-sm text-gray-700 flex items-center justify-between cursor-pointer hover:text-indigo-600 transition duration-150">
+                    <div class="flex items-center">
+                        <i data-lucide="layout-grid" class="w-4 h-4 mr-2"></i>
+                        Margens da Folha (mm)
+                    </div>
+                    <i id="margin-toggle-icon" data-lucide="chevron-down" class="w-4 h-4 transition-transform duration-300"></i>
+                </div>
+                
+                <div id="margin-content" class="hidden pt-1">
+                    <div class="grid grid-cols-2 gap-2 text-xs">
+                        <div class="col-span-2">
+                            <label for="margin-top" class="block font-medium text-gray-600">Topo:</label>
+                            <input id="margin-top" type="number" min="0" max="100" class="w-full p-1 border rounded-lg text-center focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+                        <div class="col-span-1">
+                            <label for="margin-left" class="block font-medium text-gray-600">Esquerda:</label>
+                             <input id="margin-left" type="number" min="0" max="100" class="w-full p-1 border rounded-lg text-center focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+                        <div class="col-span-1">
+                            <label for="margin-right" class="block font-medium text-gray-600">Direita:</label>
+                            <input id="margin-right" type="number" min="0" max="100" class="w-full p-1 border rounded-lg text-center focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+                        <div class="col-span-2">
+                            <label for="margin-bottom" class="block font-medium text-gray-600">Inferior:</label>
+                            <input id="margin-bottom" type="number" min="0" max="100" class="w-full p-1 border rounded-lg text-center focus:ring-blue-500 focus:border-blue-500">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mb-4 border-b pb-2">
+            <div id="line-spacing-header" class="font-bold text-sm text-gray-700 flex items-center justify-between cursor-pointer hover:text-indigo-600 transition duration-150">
+                 <div class="flex items-center">
+                    <i data-lucide="align-justify" class="w-4 h-4 mr-2"></i>
+                    Espaçamento de Linha
+                 </div>
+                 <i id="line-spacing-toggle-icon" data-lucide="chevron-down" class="w-4 h-4 transition-transform duration-300"></i>
+            </div>
+            
+            <div id="line-spacing-content" class="hidden pt-1">
+                <div class="flex items-center space-x-2">
+                    <button id="decrease-line-spacing" class="flex-1 px-3 py-1 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition duration-150 font-bold text-lg">
+                        -
+                    </button>
+                    <span id="line-spacing-value" class="w-10 text-center font-bold text-base text-gray-800 py-1 bg-gray-100 rounded-md">1.0</span>
+                    <button id="increase-line-spacing" class="flex-1 px-3 py-1 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition duration-150 font-bold text-lg">
+                        +
+                    </button>
+                </div>
+            </div>
+        </div>
+
+
+        <div class="mb-4 border-b pb-2">
+            <h3 class="font-bold text-base mb-2 text-gray-700 flex items-center">
+                <i data-lucide="arrow-up-down" class="w-4 h-4 mr-2"></i>
+                Transpor Tonalidade
+            </h3>
+            <div class="flex space-x-2">
+                <button onclick="transpose('down')" class="flex-1 px-3 py-1 bg-red-500 text-white rounded-lg hover:bg-red-600 transition duration-150">
+                    <i data-lucide="chevrons-down" class="inline-block w-4 h-4 mr-1"></i>
+                    Baixar
+                </button>
+                <button onclick="transpose('up')" class="flex-1 px-3 py-1 bg-green-500 text-white rounded-lg hover:bg-green-600 transition duration-150">
+                    <i data-lucide="chevrons-up" class="inline-block w-4 h-4 mr-1"></i>
+                    Subir
+                </button>
+            </div>
+        </div>
+        
+        <div class="mb-4 border-b pb-2">
+             <div id="text-formatting-header" class="font-bold text-sm text-gray-700 flex items-center justify-between cursor-pointer hover:text-indigo-600 transition duration-150">
+                <div class="flex items-center">
+                     <i data-lucide="highlighter" class="w-4 h-4 mr-2"></i>
+                     Formatação de Texto
+                </div>
+                <i id="text-formatting-toggle-icon" data-lucide="chevron-down" class="w-4 h-4 transition-transform duration-300"></i>
+            </div>
+            
+            <div id="text-formatting-content" class="hidden pt-1">
+                
+                <label class="block text-xs font-medium text-gray-700 mb-1">Tamanho da SELEÇÃO (pt):</label>
+                <div class="flex space-x-2 mb-3">
+                    <button onclick="changeSelectionFontSize(-1)" onmousedown="event.preventDefault()" class="flex-1 flex items-center justify-center px-3 py-1 bg-gray-200 text-gray-800 text-sm rounded-lg hover:bg-gray-300 transition duration-150 font-bold">
+                        <i data-lucide="minus-circle" class="inline-block w-4 h-4 mr-1"></i>
+                        Diminuir
+                    </button>
+                    <button onclick="changeSelectionFontSize(1)" onmousedown="event.preventDefault()" class="flex-1 flex items-center justify-center px-3 py-1 bg-gray-200 text-gray-800 text-sm rounded-lg hover:bg-gray-300 transition duration-150 font-bold">
+                        <i data-lucide="plus-circle" class="inline-block w-4 h-4 mr-1"></i>
+                        Aumentar
+                    </button>
+                </div>
+                <button onclick="applyTextFormat('bold')" onmousedown="event.preventDefault()" class="w-full mb-2 flex items-center justify-center px-3 py-1 bg-pink-500 text-white text-sm rounded-lg hover:bg-pink-600 transition duration-150">
+                    <i data-lucide="bold" class="inline-block w-4 h-4 mr-1"></i>
+                    Negrito
+                </button>
+                
+                <label for="text-font-family" class="block text-xs font-medium text-gray-700 mb-1">Estilo de Fonte Selecionada:</label>
+                <select id="text-font-family" onchange="applyTextFormat('fontFamily', this.value)" class="w-full p-1 rounded-lg mb-2 bg-gray-100 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+                    <option value="" selected disabled>Escolha o Estilo</option>
+                    <option value="Inter, sans-serif">Padrão (Sem Serif)</option>
+                    <option value="'Playfair Display', serif">Clássico (Serif)</option>
+                    <option value="'Monaco', 'Courier New', monospace">Monoespaçado</option>
+                </select>
+            </div>
+        </div>
+        <div class="mb-4 border-b pt-2 pb-2">
+            <h3 class="font-bold text-base mb-2 text-gray-700 flex items-center">
+                <i data-lucide="type" class="w-4 h-4 mr-2"></i>
+                Tamanho da Fonte Global (pt)
+            </h3>
+            <div class="flex items-center space-x-2">
+                
+                <div class="flex-1">
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Conteúdo:</label>
+                    <div class="flex">
+                        <button id="decrease-content-font" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-0.5 px-3 rounded-l-lg transition duration-150" onmousedown="event.preventDefault()">
+                            -
+                        </button>
+                        <span id="content-font-size-value" class="w-8 text-center font-bold text-base text-blue-700 bg-gray-100 py-0.5">12</span>
+                        <button id="increase-content-font" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-0.5 px-3 rounded-r-lg transition duration-150" onmousedown="event.preventDefault()">
+                            +
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex-1">
+                    <label class="block text-xs font-medium text-gray-700 mb-1">Cifra:</label>
+                    <div class="flex">
+                         <button id="decrease-chord-font" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-0.5 px-3 rounded-l-lg transition duration-150" onmousedown="event.preventDefault()">
+                            -
+                        </button>
+                        <span id="chord-font-size-value" class="w-8 text-center font-bold text-base text-red-700 bg-gray-100 py-0.5">12</span>
+                         <button id="increase-chord-font" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-0.5 px-3 rounded-r-lg transition duration-150" onmousedown="event.preventDefault()">
+                            +
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div>
+            <h3 class="font-bold text-base mb-2 text-gray-700 flex items-center">
+                <i data-lucide="save" class="w-4 h-4 mr-2"></i>
+                Ações
+            </h3>
+            <div class="space-y-2">
+                <button onclick="copyAllContent()" class="w-full flex items-center justify-center px-3 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition duration-150 text-sm">
+                    <i data-lucide="copy-check" class="inline-block w-4 h-4 mr-2"></i>
+                    Copiar Tudo
+                </button>
+                
+                <button onclick="saveToLocalStorage()" class="w-full flex items-center justify-center px-3 py-1 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition duration-150 text-sm">
+                    Salvar Localmente
+                </button>
+
+                <button onclick="newDocument()" class="w-full flex items-center justify-center px-3 py-1 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition duration-150 text-sm">
+                    <i data-lucide="file-text" class="inline-block w-4 h-4 mr-2"></i>
+                    Novo Documento
+                </button>
+            </div>
+        </div>
+
+    </aside>
+
+    <main class="flex-1 p-0 lg:p-8 overflow-y-auto">
+        
+        <div class="a4-container">
+            
+            <div id="paper-sheet" class="transition-all duration-300">
+                
+                <div class="editor-visual-wrapper">
+                    
+                    <div id="lyrics-editor" class="editor-area" contenteditable="true" data-original-key="C">
+                        </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="notification" class="bg-green-500 text-white p-3 rounded-lg shadow-xl flex items-center space-x-2">
+        <i data-lucide="clipboard-check" class="w-5 h-5"></i>
+        <span>Texto Copiado!</span>
+    </div>
+
+    <script>
+        // =========================================================
+        // JAVASCRIPT: LÓGICA DE TRANSPOSIÇÃO, COLAGEM E FORMATAÇÃO
+        // =========================================================
+
+        const CHORD_MAP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        const CHORD_INDEX_MAP = {
+            'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3, 'E': 4, 'F': 5,
+            'F#': 6, 'Gb': 6, 'G': 7, 'G#': 8, 'Ab': 8, 'A': 9, 'A#': 10, 'Bb': 10, 'B': 11
+        };
+
+        const BEMOL_TO_SHARP = {
+            'Db': 'C#', 'Eb': 'D#', 'Gb': 'F#', 'Ab': 'G#', 'Bb': 'A#'
+        };
+
+        const CHORD_BASE_REGEX = /([A-G][b#]?(?:m|maj|sus|add|dim|aug|º|\-|\+)?\d*(?:\((?:#|b)?\d+\))?(?:\/[A-G][b#]?)?)/;
+        const CHORD_SPLIT_REGEX = new RegExp(CHORD_BASE_REGEX.source, 'g');
+        
+        // Elementos DOM e variáveis globais para o layout A4
+        const paperSheet = document.getElementById('paper-sheet');
+        const marginInputs = ['margin-top', 'margin-right', 'margin-bottom', 'margin-left'];
+        let currentContentFontSizePt = 12;
+        let currentChordFontSizePt = 12;
+        let currentLineSpacing = 1.0; 
+        
+        // ------------------------------------------------------------------
+        // Funções de Notificação
+        // ------------------------------------------------------------------
+        
+        /**
+         * Exibe a notificação de cópia e a esconde após 2.5 segundos.
+         */
+        function showNotification() {
+            const notification = document.getElementById('notification');
+            notification.classList.add('show');
+
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 2500); 
+        }
+
+        // ------------------------------------------------------------------
+        // Funções de Copia e Colar
+        // ------------------------------------------------------------------
+        
+        /**
+         * Extrai todo o conteúdo do editor como texto puro (1 linha por wrapper).
+         */
+        function getCleanPlainTextContent() {
+            const editor = document.getElementById('lyrics-editor');
+            let plainText = "";
+
+            // Percorre todos os wrappers
+            editor.querySelectorAll('.line-wrapper').forEach(wrapper => {
+                const p = wrapper.querySelector('p');
+                
+                if (p) {
+                    let text = p.textContent || p.innerText;
+                    
+                    // 1. Substitui o Non-Breaking Space (\u00A0) por espaço normal
+                    text = text.replace(/\u00A0/g, ' '); 
+
+                    // 2. Adiciona a linha ao texto final.
+                    const trimmedText = text.trimEnd();
+                    if (trimmedText.length > 0) {
+                        plainText += trimmedText + "\n";
+                    } else if (p.innerHTML.includes('<br>') || p.classList.contains('section-header')) {
+                        // Mantém linhas vazias (com <br>) ou cabeçalhos de seção
+                        plainText += "\n"; 
+                    }
+                }
+            });
+
+            // Remove a última quebra de linha extra no final
+            return plainText.trimEnd(); 
+        }
+
+        /**
+         * Copia todo o conteúdo da folha (o texto limpo) para a área de transferência.
+         */
+        async function copyAllContent() {
+            const plainText = getCleanPlainTextContent();
+
+            try {
+                // Tenta usar a API moderna (Chrome, Firefox, Safari)
+                await navigator.clipboard.writeText(plainText);
+                showNotification();
+            } catch (err) {
+                console.error('Erro ao usar navigator.clipboard: ', err);
+                // Fallback para navegadores mais antigos ou se a permissão falhar
+                const tempTextarea = document.createElement('textarea');
+                tempTextarea.value = plainText;
+                
+                // Estilo para evitar que o textarea atrapalhe a visualização
+                tempTextarea.style.position = 'fixed';
+                tempTextarea.style.opacity = '0';
+                document.body.appendChild(tempTextarea);
+
+                try {
+                    // Seleciona e executa o comando de cópia
+                    tempTextarea.focus();
+                    tempTextarea.select();
+                    document.execCommand('copy');
+                    showNotification();
+                } catch (execErr) {
+                    // Notifica o usuário se o fallback falhar
+                    alert('Não foi possível copiar o texto automaticamente. Por favor, selecione e copie o conteúdo do editor manualmente.');
+                } finally {
+                    // Limpa o elemento temporário
+                    document.body.removeChild(tempTextarea);
+                }
+            }
+        }
+
+        // ------------------------------------------------------------------
+        // Funções de Controles (Margem, Fontes, Espaçamento)
+        // ------------------------------------------------------------------
+
+        /**
+         * Alterna a visibilidade de uma seção de controles e gira o ícone.
+         */
+        function toggleControlsSection(contentId, iconId) {
+            const content = document.getElementById(contentId);
+            const icon = document.getElementById(iconId);
+
+            // Toggle da classe hidden
+            content.classList.toggle('hidden');
+
+            // Troca o ícone (up para expandido, down para recolhido)
+            if (content.classList.contains('hidden')) {
+                // Recolhido (aponta para baixo)
+                icon.setAttribute('data-lucide', 'chevron-down');
+            } else {
+                // Expandido (aponta para cima)
+                icon.setAttribute('data-lucide', 'chevron-up');
+            }
+            
+            // Re-renderiza os ícones Lucide
+            lucide.createIcons();
+        }
+
+        /**
+         * Aplica as margens à folha de papel.
+         */
+        function applyMargins() {
+            // Garante que o valor não seja negativo, usando 0 se estiver vazio ou for NaN
+            const top = Math.max(0, parseFloat(document.getElementById('margin-top').value) || 0);
+            const right = Math.max(0, parseFloat(document.getElementById('margin-right').value) || 0);
+            const bottom = Math.max(0, parseFloat(document.getElementById('margin-bottom').value) || 0);
+            const left = Math.max(0, parseFloat(document.getElementById('margin-left').value) || 0);
+
+            // Aplica o padding em mm
+            paperSheet.style.padding = `${top}mm ${right}mm ${bottom}mm ${left}mm`;
+
+            // Atualiza os inputs
+            document.getElementById('margin-top').value = top;
+            document.getElementById('margin-right').value = right;
+            document.getElementById('margin-bottom').value = bottom;
+            document.getElementById('margin-left').value = left;
+        }
+
+        /**
+         * Atualiza o espaçamento de linha e a variável CSS.
+         */
+        function updateLineSpacing(delta = 0) {
+            // Garante que a precisão seja de uma casa decimal
+            let newLineSpacing = parseFloat((currentLineSpacing + delta).toFixed(1));
+
+            // Limites razoáveis para line-height (1.0 a 3.0)
+            currentLineSpacing = Math.max(1.0, Math.min(3.0, newLineSpacing));
+            document.getElementById('line-spacing-value').textContent = currentLineSpacing.toFixed(1);
+
+            // Aplica a variável CSS e na folha
+            document.documentElement.style.setProperty('--line-spacing', currentLineSpacing.toString());
+            paperSheet.style.lineHeight = currentLineSpacing.toString();
+        }
+
+        /**
+         * Atualiza o display e a variável CSS para o tamanho da fonte do CONTEÚDO (Global).
+         */
+        function updateContentFontSize(delta = 0) {
+            currentContentFontSizePt = Math.max(8, Math.min(36, currentContentFontSizePt + delta));
+            const newSizePt = currentContentFontSizePt;
+
+            // Atualiza o valor global (para textos não formatados e display)
+            document.getElementById('content-font-size-value').textContent = newSizePt;
+            document.documentElement.style.setProperty('--content-font-size', `${newSizePt}pt`);
+        }
+
+        /**
+         * Atualiza o display e a variável CSS para o tamanho da fonte da CIFRA (Global).
+         */
+        function updateChordFontSize(delta = 0) {
+            currentChordFontSizePt = Math.max(8, Math.min(36, currentChordFontSizePt + delta));
+            const newSizePt = currentChordFontSizePt;
+            
+            // Atualiza o valor global (para cifras e display)
+            document.getElementById('chord-font-size-value').textContent = newSizePt;
+            document.documentElement.style.setProperty('--chord-font-size', `${newSizePt}pt`);
+        }
+        
+        // ------------------------------------------------------------------
+        // NOVAS FUNÇÕES: Aumentar/Diminuir a Fonte Apenas da Seleção (Preciso)
+        // ------------------------------------------------------------------
+
+        /**
+         * Retorna o tamanho da fonte em PT do elemento pai mais próximo da seleção.
+         * @param {Selection} selection - O objeto Selection.
+         * @returns {number} O tamanho da fonte em pontos (pt).
+         */
+        function getSelectionFontSizePt(selection) {
+            const editor = document.getElementById('lyrics-editor');
+            let element = editor;
+            
+            if (selection.rangeCount > 0) {
+                // Encontra o elemento que contém a seleção (ou o pai comum)
+                element = selection.getRangeAt(0).commonAncestorContainer;
+                // Se for um nó de texto, pega o pai
+                if (element.nodeType === 3) { 
+                    element = element.parentNode;
+                }
+                // Se o elemento não estiver dentro do editor, volta para o editor.
+                if (!editor.contains(element)) {
+                    element = editor;
+                }
+            }
+            
+            // Pega o estilo computado (em px)
+            const computedStyle = getComputedStyle(element);
+            const pxSize = parseFloat(computedStyle.fontSize);
+            
+            // Converte para PT (1pt é ~0.75px em telas padrão 96dpi, então pt = px * 0.75)
+            // Ou, mais precisamente, pt = px * (72 / 96)
+            const computedSizePt = pxSize * (72 / 96); 
+            
+            // Retorna o tamanho arredondado, garantindo um mínimo de 8pt.
+            return Math.max(8, Math.round(computedSizePt));
+        }
+
+        /**
+         * Altera o tamanho da fonte do texto selecionado em delta pontos (pt).
+         * Esta função usa uma técnica de execCommand para aplicar o estilo inline de forma persistente.
+         * @param {number} delta - O valor de mudança (ex: 1 para aumentar, -1 para diminuir).
+         */
+        function changeSelectionFontSize(delta) {
+            const editor = document.getElementById('lyrics-editor');
+            editor.focus();
+            const selection = window.getSelection();
+
+            if (!selection.rangeCount || !editor.contains(selection.getRangeAt(0).startContainer)) {
+                return; // Não há seleção válida dentro do editor
+            }
+            
+            // 1. Obtém o tamanho atual da seleção
+            const currentSizePt = getSelectionFontSizePt(selection);
+            let newSizePt = Math.max(8, Math.min(40, currentSizePt + delta)); // Limita entre 8pt e 40pt
+            
+            // Se não houver alteração (limites atingidos), para.
+            if (newSizePt === currentSizePt && delta !== 0) {
+                 return;
+            }
+
+            // 2. Força o uso de estilos CSS inline
+            document.execCommand('styleWithCSS', false, true); 
+            
+            // 3. Usa execCommand com um índice intermediário (ex: 4) para forçar a criação de um wrapper (font ou span)
+            // Isto é necessário para que a modificação do DOM aconteça em torno da seleção.
+            document.execCommand('fontSize', false, 4); 
+
+            // 4. Itera sobre os elementos <font> criados (hack para Chrome/Edge) e aplica o estilo preciso.
+            editor.querySelectorAll('font[size="4"]').forEach(fontElement => {
+                // Se estiver dentro da seleção, aplica o estilo e remove o atributo não-padrão.
+                if (selection.containsNode(fontElement, true) || fontElement.contains(selection.anchorNode)) {
+                    fontElement.removeAttribute('size');
+                    fontElement.style.fontSize = `${newSizePt}pt`;
+                }
+            });
+            
+            // 5. Itera sobre todos os elementos que podem ter sido criados ou modificados
+            // e ajusta o tamanho se estiverem contidos na seleção e já tiverem um estilo de fonte.
+            editor.querySelectorAll('*').forEach(element => {
+                // Verifica se o elemento está completamente ou parcialmente na seleção.
+                if (element.style.fontSize && (selection.containsNode(element, true) || element.contains(selection.anchorNode))) {
+                    // Aplica o tamanho preciso calculado.
+                    element.style.fontSize = `${newSizePt}pt`;
+                }
+            });
+
+            // O `execCommand` pode deixar a seleção em um estado estranho, foca o editor novamente para "limpar"
+            editor.focus();
+        }
+
+        // ------------------------------------------------------------------
+        // Funções Auxiliares de DOM/Wrapper 
+        // ------------------------------------------------------------------
+
+        /**
+         * CRÍTICO: Novo Listener para o Checkbox
+         */
+        function addCheckboxListener(checkbox, wrapper) {
+            checkbox.addEventListener('change', (e) => {
+                if (checkbox.checked) {
+                    // Se marcado, formata como cifra
+                    formatLineAsChord(wrapper);
+                } else {
+                    // Se desmarcado, desfaz a formatação
+                    undoChordFormat(wrapper);
+                }
+            });
+        }
+
+
+        /**
+         * Cria um novo line-wrapper contendo o controle de adição, checkbox e parágrafo.
+         */
+        function createLineWrapper(content = '<br>', isChecked = false) {
+            const control = document.createElement('span');
+            control.innerHTML = '&#x2b;';
+            control.className = 'line-control';
+            control.contentEditable = 'false';
+            control.setAttribute('title', 'Inserir nova linha abaixo');
+
+            const removeControl = document.createElement('span');
+            removeControl.innerHTML = '&#x2212;';
+            removeControl.className = 'line-remove-control';
+            control.setAttribute('title', 'Remover esta linha');
+            
+            const isChordLine = content.includes('chord-line-container');
+            const isSectionHeader = content.includes('section-header');
+            
+            // Lógica para marcar o checkbox
+            const shouldBeChecked = isChordLine || isChecked; 
+
+            const controlGroup = document.createElement('div');
+            controlGroup.className = 'control-group';
+            controlGroup.contentEditable = 'false';
+            controlGroup.appendChild(control);
+            controlGroup.appendChild(removeControl);
+
+            const wrapper = document.createElement('div');
+            wrapper.className = 'line-wrapper';
+
+            if (!isSectionHeader) {
+                 const checkbox = document.createElement('input');
+                 checkbox.type = 'checkbox';
+                 checkbox.className = 'line-select';
+                 checkbox.checked = shouldBeChecked; 
+                 
+                 controlGroup.appendChild(checkbox);
+                 
+                 // CRÍTICO: Adiciona o listener para formatar/desfazer
+                 addCheckboxListener(checkbox, wrapper); 
+            }
+            
+            if (isChordLine) {
+                 // Se for uma linha de cifra salva, adiciona o botão de desfazer (que agora é opcional)
+                 const undoControl = document.createElement('span');
+                 undoControl.innerHTML = '&#x21BA;'; // Ícone de desfazer (arco de seta)
+                 undoControl.className = 'line-undo-control line-control';
+                 undoControl.setAttribute('title', 'Desfazer formatação de cifra');
+                 undoControl.onclick = (e) => {
+                     e.preventDefault();
+                     undoChordFormat(wrapper);
+                 };
+                 controlGroup.appendChild(undoControl);
+            }
+
+            const p = document.createElement('p');
+            p.innerHTML = content;
+            p.contentEditable = 'true';
+
+            // Adiciona a classe correta baseada no conteúdo
+            if (isSectionHeader) {
+                p.classList.add('section-header');
+            } else if (isChordLine) {
+                p.classList.add('chord-line-container');
+            } else {
+                p.classList.add('line-content');
+            }
+
+            wrapper.appendChild(controlGroup);
+            wrapper.appendChild(p);
+
+            return wrapper;
+        }
+
+        /**
+         * Insere uma nova linha vazia (wrapper com checkbox) após o wrapper fornecido.
+         */
+        function insertNewLine(targetWrapper) {
+            if (!targetWrapper) return;
+
+            // Insere uma nova linha vazia (não marcada por padrão)
+            const newWrapper = createLineWrapper('<br>', false); 
+            targetWrapper.after(newWrapper);
+
+            const newP = newWrapper.querySelector('.line-content');
+            if (newP) {
+                const range = document.createRange();
+                const selection = window.getSelection();
+                range.setStart(newP, 0);
+                range.collapse(true);
+                selection.removeAllRanges();
+                selection.add(range);
+                newP.focus();
+            }
+        }
+        
+        /**
+         * Tenta remover o wrapper se o parágrafo estiver vazio (ao pressionar Backspace).
+         */
+        function handleEmptyLineRemoval(currentP) {
+            const wrapper = currentP.closest('.line-wrapper');
+            const editor = document.getElementById('lyrics-editor');
+            const prevWrapper = wrapper.previousElementSibling;
+
+            if (editor.childElementCount > 1 && prevWrapper) {
+                // Move o cursor para o final da linha anterior
+                const prevP = prevWrapper.querySelector('p');
+                if (prevP) {
+                    const range = document.createRange();
+                    const selection = window.getSelection();
+                    range.selectNodeContents(prevP);
+                    range.collapse(false); // Move para o final
+                    selection.removeAllRanges();
+                    selection.add(range);
+                    prevP.focus();
+                }
+                
+                // Remove a linha atual
+                wrapper.remove();
+                return true;
+            }
+            return false;
+        }
+
+        // ------------------------------------------------------------------
+        // Funções de Detecção e Colagem de Cifras
+        // ------------------------------------------------------------------
+        
+        /**
+         * Heurística simples para detectar se uma linha de texto simples é uma linha de cifras.
+         * Verifica a densidade de caracteres que NÃO são acordes ou espaços.
+         */
+        function isLikelyChordLine(text) {
+            const trimmedText = text.trim();
+            if (trimmedText.length === 0) return false;
+
+            // 1. Remove todos os padrões de acorde da linha
+            const textWithoutChords = trimmedText.replace(CHORD_SPLIT_REGEX, '');
+            
+            // 2. Remove todos os caracteres de espaço (incluindo non-breaking spaces)
+            // e caracteres comuns de formatação de cifras (como barras | e traços -)
+            const remainingText = textWithoutChords.replace(/[\s\t\u00A0|:-]/g, ''); 
+            
+            // Se o que restar (além de acordes, espaços e separadores comuns) for muito pouco, é uma linha de cifra.
+            // Limite: Se for menor ou igual a 2 caracteres OU menos de 10% do comprimento original.
+            const ratio = remainingText.length / trimmedText.length;
+            
+            if (remainingText.length <= 2 || ratio < 0.10) { 
+                // CRÍTICO: Verifica se pelo menos um acorde foi detectado
+                return trimmedText.match(CHORD_BASE_REGEX) !== null;
+            }
+            
+            return false;
+        }
+
+        /**
+         * Manipula o evento de colagem (paste) para garantir que cada linha colada crie um novo wrapper
+         * e que as linhas de cifra sejam marcadas.
+         */
+        function handlePaste(event) {
+            event.preventDefault();
+            const text = event.clipboardData.getData('text/plain');
+            const lines = text.split(/\r\n|\r|\n/);
+            const editor = document.getElementById('lyrics-editor');
+            const selection = window.getSelection();
+
+            if (!selection.rangeCount) return;
+
+            const range = selection.getRangeAt(0);
+            const currentWrapper = range.startContainer.closest('.line-wrapper');
+
+            if (!currentWrapper) {
+                // Caso não haja wrapper (editor vazio, talvez)
+                lines.forEach(line => {
+                    const isLineChord = isLikelyChordLine(line);
+                    const newWrapper = createLineWrapper(line || '<br>', isLineChord);
+                    editor.appendChild(newWrapper);
+                    
+                    // Se for linha de cifra, já formata (liga o check e o botão de cifra)
+                    if (isLineChord) {
+                        formatLineAsChord(newWrapper);
+                    }
+                });
+                return;
+            }
+            
+            let insertTarget = currentWrapper;
+
+            // Insere cada nova linha colada como um novo wrapper
+            lines.forEach((line, index) => {
+                let wrapperToProcess;
+                const isLineChord = isLikelyChordLine(line); 
+                
+                if (index === 0) {
+                    // A primeira linha substitui o conteúdo da linha atual (onde o cursor está)
+                    const p = currentWrapper.querySelector('p');
+                    const checkbox = currentWrapper.querySelector('.line-select');
+                    
+                    if (p) {
+                         p.innerHTML = line || '<br>';
+                         p.classList.remove('chord-line-container', 'section-header');
+                         p.classList.add('line-content');
+                         // Remove o botão de desfazer se estiver presente
+                         const undoControl = currentWrapper.querySelector('.line-undo-control');
+                         if(undoControl) undoControl.remove();
+                         
+                         // Garante que o checkbox esteja presente e atualiza o status
+                         if (checkbox) {
+                             checkbox.checked = isLineChord; 
+                         }
+                    }
+                    wrapperToProcess = currentWrapper;
+                } else {
+                    // Linhas subsequentes são inseridas após a linha anterior
+                    // Passa o status de checado para createLineWrapper
+                    const newWrapper = createLineWrapper(line || '<br>', isLineChord); 
+                    insertTarget.after(newWrapper);
+                    insertTarget = newWrapper;
+                    wrapperToProcess = newWrapper;
+                }
+
+                // Se for linha de cifra, já formata
+                if (isLineChord) {
+                    formatLineAsChord(wrapperToProcess);
+                }
+            });
+
+            // Coloca o cursor no final do último wrapper colado
+            const lastP = insertTarget.querySelector('p');
+            if (lastP) {
+                const newRange = document.createRange();
+                const newSelection = window.getSelection();
+                newRange.selectNodeContents(lastP);
+                newRange.collapse(false);
+                newSelection.removeAllRanges();
+                newSelection.add(newRange);
+            }
+        }
+        
+        // ------------------------------------------------------------------
+        // Funções de Transposição
+        // ------------------------------------------------------------------
+
+        /**
+         * Transpõe um acorde base (e.g., 'C', 'G#', 'Db') pelo semitom de mudança.
+         */
+        function transposeChord(chord, semitoneChange) {
+            if (!chord) return '';
+            
+            // 1. Extrai a nota base (C, C#, D, etc.) e o restante da notação (m7, sus4, /F#)
+            const match = chord.match(/([A-G][b#]?)(.*)/);
+            if (!match) return chord; // Não é um acorde válido
+
+            let baseNote = match[1];
+            const rest = match[2];
+
+            // 2. Trata notas bemol (Db, Eb, Gb, Ab, Bb) convertendo-as para sustenido (C#, D#, F#, G#, A#)
+            if (BEMOL_TO_SHARP[baseNote]) {
+                baseNote = BEMOL_TO_SHARP[baseNote];
+            }
+
+            // 3. Encontra o índice na CHORD_MAP e calcula o novo índice
+            let index = CHORD_INDEX_MAP[baseNote];
+            if (index === undefined) return chord; // Acorde base não reconhecido (deve ser tratado pelo regex)
+
+            let newIndex = (index + semitoneChange) % CHORD_MAP.length;
+            if (newIndex < 0) {
+                newIndex += CHORD_MAP.length;
+            }
+
+            const newBaseNote = CHORD_MAP[newIndex];
+            
+            // 4. Retorna a nova nota combinada com o restante da notação
+            return newBaseNote + rest;
+        }
+
+        /**
+         * Transpõe todos os acordes visíveis na folha.
+         */
+        function transpose(direction) {
+            const semitoneChange = direction === 'up' ? 1 : -1;
+            const editor = document.getElementById('lyrics-editor');
+            
+            // Transpõe o Acorde Original da Cifra (metadado)
+            let originalKey = editor.getAttribute('data-original-key') || 'C';
+            let newOriginalKey = transposeChord(originalKey, semitoneChange);
+            editor.setAttribute('data-original-key', newOriginalKey);
+
+            // Transpõe acordes nas linhas formatadas como cifra
+            editor.querySelectorAll('.chord').forEach(chordElement => {
+                const currentChord = chordElement.textContent;
+                // Transpõe o acorde principal
+                let newChord = transposeChord(currentChord, semitoneChange);
+                
+                // Verifica se há um baixo (slash chord)
+                const bassMatch = newChord.match(/\/(.+)/);
+                if (bassMatch && bassMatch[1]) {
+                    // Transpõe a nota de baixo separadamente
+                    const bassNote = bassMatch[1];
+                    const transposedBass = transposeChord(bassNote, semitoneChange);
+                    newChord = newChord.replace(/\/.+/, `/${transposedBass}`);
+                }
+
+                chordElement.textContent = newChord;
+            });
+        }
+        
+        // ------------------------------------------------------------------
+        // Funções de Formatação (Cifra, Desfazer, Texto)
+        // ------------------------------------------------------------------
+        
+        /**
+         * Formata uma linha de texto como uma linha de cifras, envolvendo cada acorde.
+         * Garante que o checkbox esteja marcado e o botão de desfazer esteja presente.
+         */
+        function formatLineAsChord(wrapper) {
+            const p = wrapper.querySelector('.line-content');
+            if (!p || p.classList.contains('chord-line-container')) return;
+
+            const text = p.textContent.replace(/\u00A0/g, ' '); // Troca NBSP por espaço normal
+            
+            // 1. Divide o texto em partes de acordes e não-acordes
+            const parts = text.split(CHORD_SPLIT_REGEX).filter(Boolean);
+            
+            let newHTML = '';
+            parts.forEach(part => {
+                if (part.match(CHORD_BASE_REGEX)) {
+                    // É um acorde
+                    newHTML += `<span contenteditable="true" class="chord-container"><span contenteditable="true" class="chord">${part}</span></span>`;
+                } else {
+                    // É texto normal / espaço
+                    newHTML += part.replace(/ /g, '&nbsp;'); // Usa &nbsp; para preservar múltiplos espaços
+                }
+            });
+
+            // 2. Atualiza o parágrafo
+            p.innerHTML = newHTML;
+            p.classList.remove('line-content');
+            p.classList.add('chord-line-container');
+            p.contentEditable = 'false'; // Linha de cifra não deve ter o P editável no geral
+
+            // 3. Adiciona o botão de desfazer e garante o checkbox marcado
+            const controlGroup = wrapper.querySelector('.control-group');
+            
+            // Remove o botão de desfazer se já existir
+            const existingUndo = wrapper.querySelector('.line-undo-control');
+            if(existingUndo) existingUndo.remove();
+
+            // Adiciona o botão de desfazer
+            const undoControl = document.createElement('span');
+            undoControl.innerHTML = '&#x21BA;'; // Ícone de desfazer (arco de seta)
+            undoControl.className = 'line-undo-control line-control';
+            undoControl.setAttribute('title', 'Desfazer formatação de cifra');
+            undoControl.onclick = (e) => {
+                e.preventDefault();
+                undoChordFormat(wrapper);
+            };
+            controlGroup.appendChild(undoControl);
+
+            // Garante que o checkbox esteja marcado (importante para o clique manual/paste)
+            const checkbox = wrapper.querySelector('.line-select');
+            if (checkbox) {
+                checkbox.checked = true;
+            }
+        }
+
+        /**
+         * Reverte a formatação de uma linha de cifras para texto simples.
+         * Garante que o checkbox seja desmarcado e o botão de desfazer seja removido.
+         */
+        function undoChordFormat(wrapper) {
+            const p = wrapper.querySelector('.chord-line-container');
+            if (!p) return;
+
+            // 1. Extrai o texto puro da linha de cifras (apenas o texto de todos os elementos)
+            let plainText = p.textContent || p.innerText;
+            plainText = plainText.replace(/ /g, '&nbsp;'); // Preserva espaços em branco
+            
+            // 2. Restaura o parágrafo
+            p.innerHTML = plainText || '<br>';
+            p.classList.remove('chord-line-container');
+            p.classList.add('line-content');
+            p.contentEditable = 'true';
+
+            // 3. Remove o botão de desfazer e desmarca o checkbox
+            const undoControl = wrapper.querySelector('.line-undo-control');
+            if(undoControl) undoControl.remove();
+            
+            const checkbox = wrapper.querySelector('.line-select');
+            if (checkbox) {
+                 checkbox.checked = false; // Desmarca ao desfazer
+            }
+        }
+        
+        /**
+         * Aplica a função formatLineAsChord a todas as linhas selecionadas.
+         */
+        function formatSelectedLinesAsChord() {
+            document.querySelectorAll('.line-select:checked').forEach(checkbox => {
+                const wrapper = checkbox.closest('.line-wrapper');
+                if (wrapper) {
+                    formatLineAsChord(wrapper);
+                }
+            });
+        }
+        
+        /**
+         * Aplica a função undoChordFormat a todas as linhas de cifra selecionadas (aquelas com o botão desfazer).
+         */
+        function undoAllSelectedChordFormats() {
+            // Seleciona todos os checkboxes marcados E que o wrapper contenha o botão de desfazer (linha formatada)
+            document.querySelectorAll('.line-select:checked').forEach(checkbox => {
+                const wrapper = checkbox.closest('.line-wrapper');
+                if (wrapper && wrapper.querySelector('.line-undo-control')) {
+                    undoChordFormat(wrapper);
+                }
+            });
+        }
+
+        /**
+         * Aplica a formatação de texto (Negrito, Família de Fonte) à seleção atual.
+         */
+        function applyTextFormat(command, value = null) {
+            document.getElementById('lyrics-editor').focus();
+            if (command === 'bold') {
+                document.execCommand('bold', false, null);
+            } else if (command === 'fontFamily' && value) {
+                document.execCommand('fontName', false, value);
+            }
+        }
+        
+        // ------------------------------------------------------------------
+        // Funções de Persistência (Local Storage) e Inicialização
+        // ------------------------------------------------------------------
+
+        const STORAGE_KEY = 'chordEditorContent';
+        const SETTINGS_KEY = 'chordEditorSettings';
+
+        /**
+         * Salva o conteúdo e as configurações atuais no Local Storage.
+         */
+        function saveToLocalStorage() {
+            const editor = document.getElementById('lyrics-editor');
+            
+            // Antes de salvar, remove os event listeners e adiciona de volta no load.
+            // A forma mais fácil é salvar o HTML inteiro e confiar que o createLineWrapper
+            // irá recriar a estrutura completa com os listeners.
+            const content = editor.innerHTML; 
+            
+            localStorage.setItem(STORAGE_KEY, content);
+
+            const settings = {
+                marginTop: parseFloat(document.getElementById('margin-top').value) || 10,
+                marginRight: parseFloat(document.getElementById('margin-right').value) || 5,
+                marginBottom: parseFloat(document.getElementById('margin-bottom').value) || 10,
+                marginLeft: parseFloat(document.getElementById('margin-left').value) || 5,
+                lineSpacing: currentLineSpacing,
+                contentFontSize: currentContentFontSizePt,
+                chordFontSize: currentChordFontSizePt,
+                originalKey: editor.getAttribute('data-original-key') || 'C',
+                sidebarHidden: document.body.classList.contains('sidebar-hidden')
+            };
+            localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+
+            showNotificationSave();
+        }
+
+        /**
+         * Carrega o conteúdo e as configurações do Local Storage.
+         */
+        function loadFromLocalStorage() {
+            const editor = document.getElementById('lyrics-editor');
+            const savedContent = localStorage.getItem(STORAGE_KEY);
+            const savedSettings = localStorage.getItem(SETTINGS_KEY);
+            
+            if (savedContent) {
+                // Remove o conteúdo existente para recarregar
+                editor.innerHTML = ''; 
+                
+                // Cria um elemento temporário para carregar o HTML salvo
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = savedContent;
+                
+                // Percorre os wrappers salvos e recria-os com os event listeners
+                tempDiv.querySelectorAll('.line-wrapper').forEach(savedWrapper => {
+                    const p = savedWrapper.querySelector('p');
+                    const isChordLine = p.classList.contains('chord-line-container');
+                    const checkbox = savedWrapper.querySelector('.line-select');
+                    const isChecked = checkbox ? checkbox.checked : isChordLine;
+                    
+                    // Recria o wrapper usando a função que adiciona os listeners
+                    const newWrapper = createLineWrapper(p.outerHTML, isChecked);
+                    
+                    // Adiciona o novo wrapper com listeners ao editor
+                    editor.appendChild(newWrapper);
+                });
+                
+                // Garante que pelo menos uma linha esteja sempre presente no editor
+                if (editor.childElementCount === 0) {
+                     editor.appendChild(createLineWrapper());
+                }
+            } else {
+                // Conteúdo padrão se não houver nada salvo
+                editor.appendChild(createLineWrapper('Título da Música', false));
+                editor.appendChild(createLineWrapper('Artista/Intérprete', false));
+                editor.appendChild(createLineWrapper());
+                
+                const exampleLine = createLineWrapper('C G Am F', true); // Exemplo de cifra
+                editor.appendChild(exampleLine);
+                editor.appendChild(createLineWrapper('Estrofe 1', false));
+                
+                // Formata a linha de cifra de exemplo para que o HTML de cifras esteja pronto
+                formatLineAsChord(exampleLine); 
+            }
+            
+            if (savedSettings) {
+                const settings = JSON.parse(savedSettings);
+                
+                // Aplica Margens
+                document.getElementById('margin-top').value = settings.marginTop;
+                document.getElementById('margin-right').value = settings.marginRight;
+                document.getElementById('margin-bottom').value = settings.marginBottom;
+                document.getElementById('margin-left').value = settings.marginLeft;
+                applyMargins();
+
+                // Aplica Espaçamento de Linha
+                currentLineSpacing = settings.lineSpacing;
+                updateLineSpacing(0); // Força a atualização do display e da variável CSS
+
+                // Aplica Tamanho de Fonte
+                currentContentFontSizePt = settings.contentFontSize;
+                updateContentFontSize(0); // Atualiza display e CSS
+                currentChordFontSizePt = settings.chordFontSize;
+                updateChordFontSize(0); // Atualiza display e CSS
+                
+                // Acorde Original
+                editor.setAttribute('data-original-key', settings.originalKey);
+
+                // Estado da Sidebar
+                if (settings.sidebarHidden) {
+                    document.body.classList.add('sidebar-hidden');
+                    // Atualiza o botão de toggle
+                    const toggleButton = document.getElementById('toggle-button');
+                    toggleButton.innerHTML = '&#x25B6; Mostrar Menu';
+                }
+            } else {
+                 // Configurações padrão iniciais
+                 document.getElementById('margin-top').value = 10;
+                 document.getElementById('margin-right').value = 5;
+                 document.getElementById('margin-bottom').value = 10;
+                 document.getElementById('margin-left').value = 5;
+                 applyMargins();
+                 updateLineSpacing(0); 
+                 updateContentFontSize(0);
+                 updateChordFontSize(0);
+            }
+        }
+        
+        /**
+         * Inicia um novo documento, limpando o editor.
+         */
+        function newDocument() {
+            if (confirm('Tem certeza que deseja iniciar um novo documento? O conteúdo atual será perdido se não tiver sido salvo localmente.')) {
+                const editor = document.getElementById('lyrics-editor');
+                editor.innerHTML = '';
+                
+                editor.appendChild(createLineWrapper('Título da Música', false));
+                editor.appendChild(createLineWrapper('Artista/Intérprete', false));
+                editor.appendChild(createLineWrapper());
+                
+                const exampleLine = createLineWrapper('C G Am F', true); // Exemplo de cifra
+                editor.appendChild(exampleLine);
+                editor.appendChild(createLineWrapper('Estrofe 1', false));
+                
+                formatLineAsChord(exampleLine); 
+                
+                editor.setAttribute('data-original-key', 'C');
+                
+                // Limpa o local storage para iniciar novo
+                localStorage.removeItem(STORAGE_KEY);
+            }
+        }
+        
+        /**
+         * Exibe uma notificação para salvar.
+         */
+        function showNotificationSave() {
+             const notification = document.getElementById('notification');
+             notification.querySelector('span').textContent = 'Conteúdo Salvo!';
+             notification.classList.remove('bg-green-500');
+             notification.classList.add('bg-gray-700');
+             notification.classList.add('show');
+             notification.querySelector('i').setAttribute('data-lucide', 'save');
+             lucide.createIcons();
+             
+             setTimeout(() => {
+                 notification.classList.remove('show');
+                 setTimeout(() => {
+                     // Restaura para a notificação de cópia
+                     notification.querySelector('span').textContent = 'Texto Copiado!';
+                     notification.classList.remove('bg-gray-700');
+                     notification.classList.add('bg-green-500');
+                     notification.querySelector('i').setAttribute('data-lucide', 'clipboard-check');
+                     lucide.createIcons();
+                 }, 300);
+             }, 2000);
+        }
+
+        // ------------------------------------------------------------------
+        // Funções de Toggle de Sidebar
+        // ------------------------------------------------------------------
+        
+        function toggleSidebar() {
+            const body = document.body;
+            const toggleButton = document.getElementById('toggle-button');
+            
+            body.classList.toggle('sidebar-hidden');
+
+            if (body.classList.contains('sidebar-hidden')) {
+                toggleButton.innerHTML = '&#x25B6; Mostrar Menu';
+                toggleButton.setAttribute('title', 'Mostrar Menu');
+            } else {
+                toggleButton.innerHTML = '&#x25C0; Esconder Menu';
+                toggleButton.setAttribute('title', 'Esconder Menu');
+            }
+        }
+
+
+        // ------------------------------------------------------------------
+        // Configuração Inicial e Event Listeners
+        // ------------------------------------------------------------------
+
+        document.addEventListener('DOMContentLoaded', () => {
+            
+            // 1. Inicializa o estado
+            loadFromLocalStorage();
+
+            // 2. Event Listeners para Margens
+            marginInputs.forEach(id => {
+                document.getElementById(id).addEventListener('change', applyMargins);
+                document.getElementById(id).addEventListener('keyup', (e) => {
+                     // Executa applyMargins também ao levantar a tecla para feedback visual rápido, mas apenas se a tecla for Enter
+                     if (e.key === 'Enter') applyMargins();
+                });
+            });
+
+            // 3. Event Listeners para Espaçamento de Linha
+            document.getElementById('increase-line-spacing').addEventListener('click', () => updateLineSpacing(0.1));
+            document.getElementById('decrease-line-spacing').addEventListener('click', () => updateLineSpacing(-0.1));
+
+            // 4. Event Listeners para Tamanho da Fonte (Global)
+            // Estes controles agora são APENAS globais (CSS Variable)
+            document.getElementById('increase-content-font').addEventListener('click', () => updateContentFontSize(1));
+            document.getElementById('decrease-content-font').addEventListener('click', () => updateContentFontSize(-1));
+            document.getElementById('increase-chord-font').addEventListener('click', () => updateChordFontSize(1));
+            document.getElementById('decrease-chord-font').addEventListener('click', () => updateChordFontSize(-1));
+            
+            // 5. Event Listeners para Toggle de Seções
+            document.getElementById('margin-header').addEventListener('click', () => toggleControlsSection('margin-content', 'margin-toggle-icon'));
+            document.getElementById('line-spacing-header').addEventListener('click', () => toggleControlsSection('line-spacing-content', 'line-spacing-toggle-icon'));
+            document.getElementById('text-formatting-header').addEventListener('click', () => toggleControlsSection('text-formatting-content', 'text-formatting-toggle-icon'));
+
+            // 6. Event Listeners para o Editor
+            const editor = document.getElementById('lyrics-editor');
+            
+            editor.addEventListener('paste', handlePaste);
+
+            editor.addEventListener('keydown', (event) => {
+                const selection = window.getSelection();
+                if (!selection.rangeCount) return;
+                
+                const range = selection.getRangeAt(0);
+                const currentP = range.startContainer.closest('p');
+                const currentWrapper = currentP ? currentP.closest('.line-wrapper') : null;
+                
+                if (event.key === 'Enter' && currentWrapper) {
+                    event.preventDefault(); // Impede o comportamento padrão do Enter
+                    insertNewLine(currentWrapper);
+                } 
+                
+                if (event.key === 'Backspace' && currentP) {
+                     // Verifica se o cursor está no início da linha e a linha está vazia
+                     const isCaretAtStart = range.startOffset === 0;
+                     const isLineEmpty = currentP.textContent.trim().length === 0 && currentP.innerHTML.trim() === '<br>';
+
+                     if (isCaretAtStart && isLineEmpty) {
+                         // Tenta remover a linha. Se for removida, previne o Backspace padrão.
+                         if (handleEmptyLineRemoval(currentP)) {
+                             event.preventDefault();
+                         }
+                     }
+                }
+            });
+
+            // 7. Event Listener para Botões de Controle de Linha e Prevenção de Foco
+            editor.addEventListener('click', (event) => {
+                let target = event.target;
+                
+                // Lógica de adicionar/remover linha e prevenção de foco em cifra
+                if (target.classList.contains('line-control') && !target.classList.contains('line-undo-control')) {
+                    const targetWrapper = target.closest('.line-wrapper');
+                    if (targetWrapper) insertNewLine(targetWrapper);
+                    return;
+                }
+                if (target.classList.contains('line-remove-control')) {
+                    const targetWrapper = target.closest('.line-wrapper');
+                    const editor = document.getElementById('lyrics-editor');
+                    
+                    if (targetWrapper && editor.childElementCount > 1) {
+                        targetWrapper.remove();
+                    } else if (targetWrapper) {
+                        const p = targetWrapper.querySelector('.line-content, .chord-line-container, .section-header');
+                        if(p) p.innerHTML = '<br>';
+                    }
+                    return;
+                }
+                if (target.classList.contains('chord') || target.closest('.chord-container')) {
+                    event.preventDefault(); 
+                }
+            });
+
+            // 8. Inicializa os ícones do Lucide
+            lucide.createIcons();
+            
+            // Foca o editor na inicialização
+            editor.focus();
+        });
+    </script>
+</body>
+</html>

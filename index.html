@@ -1,1 +1,856 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editor de Cifras Dinâmico A4</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    
+    <style>
+        /* ---------------------------------------------------------------- */
+        /* VARIÁVEIS CSS (ROOT) - AJUSTADAS PARA INCLUIR OPÇÕES DE FONTE */
+        /* ---------------------------------------------------------------- */
+        :root {
+            --margin-top: 3.0cm;
+            --margin-right: 2.0cm;
+            --margin-bottom: 2.0cm;
+            --margin-left: 3.0cm;
+            --font-size-general: 12pt; /* Fonte para cifras, letras e cabeçalhos secundários */
+            --font-size-title: 16pt;   /* Fonte específica para o TÍTULO */
+            --line-spacing-lyric: 1.5; 
+            --line-spacing-chord: 1.2;
+        }
+
+        /* ---------------------------------------------------------------- */
+        /* CSS BASE E LAYOUT DE PÁGINA A4 */
+        /* ---------------------------------------------------------------- */
+        body {
+            background-color: #e9e9e9;
+            margin: 0;
+            padding: 20px 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center; 
+            font-family: Arial, sans-serif;
+        }
+
+        #editor-container {
+            width: 21cm; 
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1); 
+            background-color: #f8f8f8; 
+            padding-top: 5px; 
+        }
+        
+        .page-wrapper {
+            width: 21cm;
+            height: 29.7cm; 
+            margin-bottom: 20px;
+        }
+        
+        .page {
+            width: 21cm;
+            height: 29.7cm; 
+            padding: var(--margin-top) var(--margin-right) var(--margin-bottom) var(--margin-left);
+            background-color: #fff;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.2);
+            outline: none; 
+            box-sizing: border-box; 
+            overflow: hidden; 
+            /* Fonte Geral é aplicada aqui e herdada pelas linhas normais */
+            font-size: var(--font-size-general); 
+            line-height: var(--line-spacing-lyric);
+        }
+
+        /* ---------------------------------------------------------------- */
+        /* ESTILOS ESPECÍFICOS DO CONTEÚDO (MODO MÚSICA) */
+        /* ---------------------------------------------------------------- */
+        
+        #chord-sheet-content, .chord-sheet-content-overflow {
+            height: 100%;
+            overflow: hidden;
+            user-select: none; 
+            cursor: default;
+        }
+        
+        /* NOVO: ESTILO PARA A LINHA DO TÍTULO */
+        .title-line { 
+            font-size: var(--font-size-title); /* Tamanho de fonte específico */
+            font-weight: bold; /* Título sempre em negrito */
+            text-align: center;
+            margin-bottom: 0.8em;
+            line-height: var(--line-spacing-lyric);
+            white-space: pre; 
+            font-family: monospace; 
+        }
+        
+        /* LINHA CRÍTICA 1: LINHA DE CIFRA */
+        .chord-line {
+            font-weight: bold;
+            color: #c9302c; 
+            margin-bottom: 0;
+            line-height: var(--line-spacing-chord); 
+            white-space: pre; 
+            font-family: monospace; 
+            user-select: text; 
+        }
+        
+        /* LINHA CRÍTICA 2: LINHAS DE LETRA E OUTROS CABEÇALHOS */
+        .lyric-line, .header-line {
+            margin-top: 0;
+            margin-bottom: 0.5em; 
+            line-height: var(--line-spacing-lyric); 
+            white-space: pre; 
+            font-family: monospace; 
+        }
+
+        .chord {
+            font-weight: bold;
+            color: #c9302c; 
+            cursor: pointer;
+            display: inline-block;
+        }
+
+        /* ---------------------------------------------------------------- */
+        /* ESTILOS DO EDITOR RAW (MODO EDIÇÃO) */
+        /* ---------------------------------------------------------------- */
+        #raw-editor-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        #raw-editor-box {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            width: 80%;
+            max-width: 800px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+        
+        #raw-text-area {
+            width: 100%;
+            height: auto; 
+            min-height: 400px; 
+            margin-bottom: 15px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            font-family: monospace; 
+            font-size: 12pt; 
+            resize: none;
+            overflow-y: scroll;
+        }
+        
+        /* ---------------------------------------------------------------- */
+        /* ESTILOS DE TOOLBAR E GERAIS */
+        /* ---------------------------------------------------------------- */
+        #toolbar-wrapper { width: 21cm; margin-bottom: 10px; }
+        #toolbar { width: 100%; background-color: #f8f8f8; border: 1px solid #ddd; padding: 8px 15px; display: flex; gap: 10px; flex-wrap: wrap; box-sizing: border-box; }
+        .tool-group { display: flex; align-items: center; border-right: 1px solid #eee; padding-right: 10px; }
+        .tool-group:last-child { border-right: none; }
+        .tool-button, .tool-select, .margin-input { 
+            background-color: transparent; border: 1px solid transparent; padding: 6px 8px; cursor: pointer; font-size: 14px; margin: 0 2px; border-radius: 3px; transition: background-color 0.2s; height: 30px; box-sizing: border-box;
+        }
+        .margin-input { width: 45px; padding: 4px; border: 1px solid #ccc; text-align: center; }
+        .margin-label { font-size: 12px; color: #555; margin-right: 5px; }
+        .tool-button:hover, .tool-select:hover { background-color: #e2e2e2; border-color: #ccc; }
+        .tool-button.primary { background-color: #007bff; color: white; border-color: #007bff; }
+        .tool-button.primary:hover { background-color: #0056b3; color: white; border-color: #0056b3; }
+        
+        /* Estilos de Impressão */
+        @page { margin: 0; size: A4; }
+        @media print {
+             body { background: none; padding: 0; }
+             #toolbar-wrapper, #raw-editor-modal, #notification-container { display: none; } 
+             #editor-container { box-shadow: none; width: 100%; padding-top: 0; }
+             .page-wrapper { margin-bottom: 0; page-break-after: always; }
+             .page {
+                 box-shadow: none; width: 21cm !important; height: 29.7cm !important; overflow: visible !important; box-sizing: border-box !important; 
+             }
+        }
+
+        /* ---------------------------------------------------------------- */
+        /* ESTILOS DE NOTIFICAÇÃO (NOVO) */
+        /* ---------------------------------------------------------------- */
+        #notification-container {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 2000;
+            display: flex;
+            flex-direction: column-reverse; 
+            gap: 10px;
+        }
+
+        .notification {
+            min-width: 250px;
+            max-width: 350px;
+            padding: 15px;
+            border-radius: 8px;
+            color: #fff;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            opacity: 0;
+            transform: translateX(100%);
+            transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+            display: flex;
+            align-items: center;
+            font-size: 14px;
+        }
+
+        .notification-icon {
+            margin-right: 10px;
+            font-size: 18px;
+        }
+
+        .notification.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .notification.success { background-color: #5cb85c; }
+        .notification.error { background-color: #d9534f; }
+        .notification.info { background-color: #007bff; }
+    </style>
+</head>
+<body>
+    
+    <div id="notification-container"></div>
+
+    <div id="toolbar-wrapper">
+        <div id="toolbar">
+            <div class="tool-group">
+                <button class="tool-button" onclick="printDocument()" title="Imprimir (Salvar como PDF)"><i class="fa fa-print"></i> Imprimir</button>
+                <button class="tool-button primary" onclick="showRawEditor()" title="Cole e edite o texto original aqui."><i class="fa fa-edit"></i> Editar Cifra (Raw)</button>
+            </div>
+            
+            <div class="tool-group" id="transpose-group">
+                <span class="margin-label" style="font-weight: bold;">Tom Atual: <span id="current-displayed-key">C</span> | Transpor para:</span>
+                <select id="transposeSelect" onchange="transposeKeyToKey(this.value)" class="tool-select" title="Transpor para o tom selecionado">
+                    <option value="">Selecione o Tom</option>
+                    <option value="C">C</option>
+                    <option value="C#">C#</option>
+                    <option value="Db">Db</option>
+                    <option value="D">D</option>
+                    <option value="D#">D#</option> <option value="Eb">Eb</option>
+                    <option value="E">E</option>
+                    <option value="F">F</option>
+                    <option value="F#">F#</option>
+                    <option value="Gb">Gb</option>
+                    <option value="G">G</option>
+                    <option value="G#">G#</option> <option value="Ab">Ab</option>
+                    <option value="A">A</option>
+                    <option value="A#">A#</option> <option value="Bb">Bb</option>
+                    <option value="B">B</option>
+                </select>
+            </div>
+            
+            <div class="tool-group" id="config-group">
+                <span class="margin-label" style="font-weight: bold;">Margens (cm):</span>
+                <span class="margin-label" title="Margem Superior">Sup:</span>
+                <input type="number" id="margin-top-input" class="margin-input" min="0" step="0.1" value="3.0" onchange="updateMargin('top', this.value)"> 
+                <span class="margin-label" title="Margem Inferior">Inf:</span>
+                <input type="number" id="margin-bottom-input" class="margin-input" min="0" step="0.1" value="2.0" onchange="updateMargin('bottom', this.value)"> 
+                <span class="margin-label" title="Margem Esquerda">Esq:</span>
+                <input type="number" id="margin-left-input" class="margin-input" min="0" step="0.1" value="3.0" onchange="updateMargin('left', this.value)"> 
+                <span class="margin-label" title="Margem Direita">Dir:</span>
+                <input type="number" id="margin-right-input" class="margin-input" min="0" step="0.1" value="2.0" onchange="updateMargin('right', this.value)"> 
+            </div>
+
+            <div class="tool-group">
+                <span class="margin-label" style="font-weight: bold;">Esp. Linhas:</span>
+                <input type="number" id="line-spacing-input" class="margin-input" min="1.0" max="3.0" step="0.1" value="1.5" onchange="updateLineSpacing(this.value)"> 
+            </div>
+
+            <div class="tool-group">
+                <span class="margin-label" style="font-weight: bold;">Tamanho Fonte (pt):</span>
+                <span class="margin-label" title="Tamanho do Título">Título:</span>
+                <input type="number" id="font-size-title-input" class="margin-input" min="8" max="48" step="1" value="16" onchange="updateFontSize('title', this.value)"> 
+                <span class="margin-label" title="Tamanho de Cifras e Letras">Geral:</span>
+                <input type="number" id="font-size-general-input" class="margin-input" min="8" max="24" step="1" value="12" onchange="updateFontSize('general', this.value)"> 
+            </div>
+            
+            <div class="tool-group">
+                <button class="tool-button" onclick="saveSettings()" title="Salvar configurações de margem e espaçamento no navegador."><i class="fa fa-save"></i> Salvar Configs</button>
+            </div>
+            
+        </div>
+    </div>
+
+    <div id="editor-container">
+        
+        <div class="page-wrapper">
+            <section class="page" id="page-1">
+                <div id="chord-sheet-content">
+                    </div>
+            </section>
+        </div>
+        </div>
+
+    <div id="raw-editor-modal" style="display: flex;">
+        <div id="raw-editor-box">
+            <h2>Modo de Edição (Raw)</h2>
+            <p>Cole o texto completo da cifra copiada de um site (incluindo versos, cifras e cabeçalhos). **Use espaços para alinhar as cifras sobre as palavras das letras.**</p>
+            <textarea id="raw-text-area">
+Título da Música
+Artista
+Tom: C
+
+        C      G       Am      F
+Porque Ele vive, eu posso crer no amanhã
+        G      C       G       D
+Porque Ele vive, temor não há.
+
+          C     G
+Tomara que chova logo
+          Am    F
+Tomara que caia tudo...
+</textarea>
+            <button class="tool-button primary" onclick="processRawText()"> 
+                <i class="fa fa-music"></i> Processar Cifra 
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // ----------------------------------------------------------------
+        // VARIÁVEIS E CONSTANTES GLOBAIS 
+        // ----------------------------------------------------------------
+        const editorContainer = document.getElementById('editor-container');
+        const rawEditorModal = document.getElementById('raw-editor-modal');
+        const rawTextArea = document.getElementById('raw-text-area');
+        const chordSheetContent = document.getElementById('chord-sheet-content');
+        
+        let currentRawText = rawTextArea.value; 
+
+        let initialReferenceKey = 'C'; 
+        let currentDisplayedKey = 'C'; 
+        const CHORD_MAP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        const CHORD_INDEX_MAP = { 
+            'C': 0, 'C#': 1, 'Db': 1, 'D': 2, 'D#': 3, 'Eb': 3, 'E': 4, 'F': 5, 
+            'F#': 6, 'Gb': 6, 'G': 7, 'G#': 8, 'Ab': 8, 'A': 9, 'A#': 10, 'Bb': 10, 'B': 11 
+        };
+        const BEMOL_TO_SHARP = { 'Db': 'C#', 'Eb': 'D#', 'Gb': 'F#', 'Ab': 'G#', 'Bb': 'A#' };
+        const FLAT_KEYS = ['Db', 'Eb', 'Gb', 'Ab', 'Bb', 'Fm', 'Bbm'];
+        const CHORD_REGEX = /([A-G][b#]?(?:m|maj|sus|add|dim|aug|º|\-|\+)?\d*(?:\((?:#|b)?\d+\))?(?:\/[A-G][b#]?)?)/g;
+        const CHORD_LINE_CHECK_REGEX = /^(?:\s*[A-G][b#]?(?:m|maj|sus|add|dim|aug|º|\-|\+)?\d*(?:\/\s*[A-G][b#]?)?\s*)+$/i;
+
+
+        // ----------------------------------------------------------------
+        // NOVO: SISTEMA DE NOTIFICAÇÃO
+        // ----------------------------------------------------------------
+
+        function showNotification(message, type = 'info') {
+            const container = document.getElementById('notification-container');
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            
+            let iconClass = 'fa fa-info-circle';
+            if (type === 'success') {
+                iconClass = 'fa fa-check-circle';
+            } else if (type === 'error') {
+                iconClass = 'fa fa-exclamation-triangle';
+            }
+
+            notification.innerHTML = `<span class="${iconClass} notification-icon"></span><span>${message}</span>`;
+            
+            container.appendChild(notification);
+            
+            void notification.offsetWidth; 
+            
+            notification.classList.add('show');
+
+            setTimeout(() => {
+                notification.classList.remove('show');
+                notification.addEventListener('transitionend', () => {
+                    notification.remove();
+                });
+            }, 4000);
+        }
+
+        // ----------------------------------------------------------------
+        // PERSISTÊNCIA (LOCALSTORAGE)
+        // ----------------------------------------------------------------
+
+        function saveSettings() {
+            if (typeof(Storage) !== "undefined") {
+                const settings = {
+                    marginTop: document.getElementById('margin-top-input').value,
+                    marginRight: document.getElementById('margin-right-input').value,
+                    marginBottom: document.getElementById('margin-bottom-input').value,
+                    marginLeft: document.getElementById('margin-left-input').value,
+                    lineSpacing: document.getElementById('line-spacing-input').value,
+                    // NOVAS FONTES
+                    fontSizeTitle: document.getElementById('font-size-title-input').value,
+                    fontSizeGeneral: document.getElementById('font-size-general-input').value
+                };
+                localStorage.setItem('chordEditorSettings', JSON.stringify(settings));
+                showNotification('Configurações salvas com sucesso!', 'success');
+            } else {
+                showNotification('Seu navegador não suporta salvamento de configurações.', 'error');
+            }
+        }
+
+        function loadSettings() {
+            if (typeof(Storage) !== "undefined") {
+                const savedSettings = localStorage.getItem('chordEditorSettings');
+                if (savedSettings) {
+                    const settings = JSON.parse(savedSettings);
+
+                    // Margens e Espaçamento
+                    document.getElementById('margin-top-input').value = settings.marginTop;
+                    document.getElementById('margin-bottom-input').value = settings.marginBottom;
+                    document.getElementById('margin-left-input').value = settings.marginLeft;
+                    document.getElementById('margin-right-input').value = settings.marginRight;
+                    document.getElementById('line-spacing-input').value = settings.lineSpacing;
+                    
+                    updateMargin('top', settings.marginTop, false); 
+                    updateMargin('right', settings.marginRight, false); 
+                    updateMargin('bottom', settings.marginBottom, false);
+                    updateMargin('left', settings.marginLeft, false);
+                    updateLineSpacing(settings.lineSpacing, false);
+                    
+                    // NOVAS FONTES
+                    document.getElementById('font-size-title-input').value = settings.fontSizeTitle || 16;
+                    document.getElementById('font-size-general-input').value = settings.fontSizeGeneral || 12;
+                    
+                    updateFontSize('title', settings.fontSizeTitle || 16, false);
+                    // O último ajuste de fonte ('general') deve reprocessar a cifra
+                    updateFontSize('general', settings.fontSizeGeneral || 12, false);
+                    
+                    showNotification('Configurações carregadas do navegador.', 'info');
+                } else {
+                    updateRawEditorSize();
+                }
+            } else {
+                updateRawEditorSize();
+            }
+        }
+        
+        // ----------------------------------------------------------------
+        // AJUSTES DE PÁGINA E SINCRONIZAÇÃO
+        // ----------------------------------------------------------------
+
+        function updateRawEditorSize() {
+            const page = document.querySelector('.page');
+            const rawTextArea = document.getElementById('raw-text-area');
+            if (!page || !rawTextArea) return;
+
+            const pageHeightCM = 29.7; 
+            const marginTop = parseFloat(document.getElementById('margin-top-input').value) || 3.0;
+            const marginBottom = parseFloat(document.getElementById('margin-bottom-input').value) || 2.0;
+            const verticalMarginsCM = marginTop + marginBottom;
+            const contentHeightCM = pageHeightCM - verticalMarginsCM;
+
+            const root = document.documentElement;
+            const computedPageStyle = window.getComputedStyle(page);
+            
+            // Usa o tamanho geral da fonte que é aplicado no .page
+            const fontSizePx = parseFloat(computedPageStyle.fontSize); 
+            const lineSpacing = parseFloat(root.style.getPropertyValue('--line-spacing-lyric')) || 1.5;
+            const lineHeightPx = fontSizePx * lineSpacing; 
+
+            const CM_TO_PX = 37.795; 
+            const contentHeightPx = contentHeightCM * CM_TO_PX;
+
+            const maxLines = Math.floor(contentHeightPx / lineHeightPx);
+
+            const rawStyle = window.getComputedStyle(rawTextArea);
+            const rawLineHeightPx = parseFloat(rawStyle.lineHeight); 
+            const rawPaddingTop = parseFloat(rawStyle.paddingTop);
+            const rawPaddingBottom = parseFloat(rawStyle.paddingBottom);
+            
+            const newRawHeightPx = (maxLines * rawLineHeightPx) + rawPaddingTop + rawPaddingBottom;
+            
+            rawTextArea.style.height = `${newRawHeightPx}px`;
+        }
+
+        function updateMargin(side, value, save = true) {
+            const root = document.documentElement; 
+            const cssVariable = `--margin-${side}`; 
+            root.style.setProperty(cssVariable, `${value}cm`);
+            
+            document.querySelectorAll('.page').forEach(handlePageOverflow);
+            updateRawEditorSize(); 
+            if (save) saveSettings();
+        }
+
+        function updateLineSpacing(value, save = true) {
+            const root = document.documentElement;
+            const floatValue = parseFloat(value);
+            
+            root.style.setProperty('--line-spacing-lyric', floatValue);
+            
+            const chordValue = (floatValue * 0.8).toFixed(2); 
+            root.style.setProperty('--line-spacing-chord', chordValue);
+
+            // Se save for false, não re-renderiza, pois 'updateFontSize' fará isso depois.
+            if (save) {
+                parseAndRenderChordSheet(currentRawText, currentDisplayedKey); 
+            }
+
+            document.querySelectorAll('.page').forEach(handlePageOverflow);
+            updateRawEditorSize(); 
+            if (save) saveSettings();
+        }
+
+        function updateFontSize(type, value, save = true) {
+            const root = document.documentElement; 
+            const floatValue = parseFloat(value);
+            let cssVariable;
+            
+            if (type === 'title') {
+                cssVariable = `--font-size-title`; 
+            } else if (type === 'general') {
+                cssVariable = `--font-size-general`;
+            } else {
+                return;
+            }
+            
+            root.style.setProperty(cssVariable, `${floatValue}pt`);
+
+            // Apenas re-renderiza a cifra se o tamanho geral for alterado, pois afeta o layout da folha.
+            if (type === 'general') {
+                parseAndRenderChordSheet(currentRawText, currentDisplayedKey);
+            }
+            
+            document.querySelectorAll('.page').forEach(handlePageOverflow);
+            updateRawEditorSize(); 
+            if (save) saveSettings();
+        }
+
+
+        // ---------------------------------------------------------------- //
+        // LÓGICA DE TRANSPOSIÇÃO
+        // ---------------------------------------------------------------- //
+
+        function transposeBaseNote(baseNote, steps, useFlats) {
+            let index = CHORD_INDEX_MAP[baseNote]; 
+            if (index === undefined) {
+                 const sharpBaseNote = BEMOL_TO_SHARP[baseNote] || baseNote;
+                 index = CHORD_INDEX_MAP[sharpBaseNote];
+            }
+            if (index === undefined) return baseNote;
+            
+            const newIndex = (index + steps) % 12;
+            const finalIndex = newIndex < 0 ? newIndex + 12 : newIndex;
+
+            if (useFlats) {
+                 const flatNote = Object.keys(CHORD_INDEX_MAP).find(key => CHORD_INDEX_MAP[key] === finalIndex && key.length === 2 && key.includes('b'));
+                 if (flatNote) return flatNote;
+            }
+            
+            return CHORD_MAP[finalIndex];
+        }
+
+        function transposeChord(match, steps, useFlats) {
+            const rootRegex = /([A-G][b#]?)/i;
+            const mainRootMatch = match.match(rootRegex);
+            
+            if (!mainRootMatch) return match; 
+
+            let originalBaseNote = mainRootMatch[1];
+            
+            const transposedBaseNote = transposeBaseNote(originalBaseNote, steps, useFlats);
+
+            const bassMatch = match.match(/\/(?:[A-G][b#]?)$/);
+            let transposedBassNote = '';
+            let originalMatchWithoutBass = match;
+            
+            if (bassMatch) {
+                const bassNote = bassMatch[0].substring(1); 
+                transposedBassNote = transposeBaseNote(bassNote, steps, useFlats);
+                
+                originalMatchWithoutBass = match.replace(bassMatch[0], '');
+            }
+
+            let transposedChord = originalMatchWithoutBass.replace(originalBaseNote, transposedBaseNote);
+
+            if (bassMatch) {
+                transposedChord += '/' + transposedBassNote;
+            }
+
+            return transposedChord;
+        }
+
+        function transposeKeyToKey(targetKey) {
+            if (!targetKey) {
+                document.getElementById('transposeSelect').value = ""; 
+                return; 
+            }
+
+            // Garante que os 'data-original-chord' estejam com o tom base correto (initialReferenceKey)
+            parseAndRenderChordSheet(currentRawText);
+
+            // CORREÇÃO CRÍTICA: Se o tom alvo for o mesmo que o tom de referência, não faça transposição.
+            if (targetKey === initialReferenceKey) {
+                currentDisplayedKey = targetKey;
+                document.getElementById('current-displayed-key').textContent = currentDisplayedKey;
+                document.getElementById('transposeSelect').value = ""; 
+                showNotification(`O tom já é ${currentDisplayedKey}. Nenhuma transposição necessária.`, 'info');
+                document.querySelectorAll('.page').forEach(handlePageOverflow);
+                return;
+            }
+            
+            const allChordElements = document.querySelectorAll(`[data-original-chord]`);
+
+            if (allChordElements.length === 0) {
+                showNotification("Nenhuma cifra encontrada. Processe o texto (RAW) primeiro.", 'error');
+                document.getElementById('transposeSelect').value = "";
+                return;
+            }
+            
+            const targetRoot = targetKey.trim();
+            const useFlats = FLAT_KEYS.includes(targetRoot);
+            
+            const referenceKey = BEMOL_TO_SHARP[initialReferenceKey] || initialReferenceKey;
+            const targetKeyForIndex = BEMOL_TO_SHARP[targetRoot] || targetRoot;
+            
+            const referenceIndex = CHORD_INDEX_MAP[referenceKey];
+            const targetIndex = CHORD_INDEX_MAP[targetKeyForIndex];
+            
+            if (referenceIndex === undefined || targetIndex === undefined) {
+                showNotification(`Erro: Tom de destino ('${targetKey}') não reconhecido.`, 'error');
+                document.getElementById('transposeSelect').value = "";
+                return;
+            }
+
+            let totalSemitones = targetIndex - referenceIndex;
+            
+            if (totalSemitones > 6) {
+                totalSemitones -= 12; 
+            } else if (totalSemitones < -6) {
+                totalSemitones += 12; 
+            }
+            
+            allChordElements.forEach(chordElement => {
+                const originalChord = chordElement.getAttribute('data-original-chord');
+                const transposedChord = transposeChord(originalChord, totalSemitones, useFlats); 
+                chordElement.textContent = transposedChord;
+            });
+            
+            currentDisplayedKey = targetKey;
+            document.getElementById('current-displayed-key').textContent = currentDisplayedKey;
+            document.getElementById('transposeSelect').value = ""; 
+            
+            showNotification(`Transposto para o tom de ${currentDisplayedKey}.`, 'info');
+
+            document.querySelectorAll('.page').forEach(handlePageOverflow);
+        }
+        
+        // ---------------------------------------------------------------- //
+        // LÓGICA DE MODO EDIÇÃO / MODO MÚSICA (CORE)
+        // ---------------------------------------------------------------- //
+
+        function parseAndRenderChordSheet(rawText, targetKey = null) {
+            
+            currentRawText = rawText; 
+            chordSheetContent.innerHTML = '';
+            
+            Array.from(editorContainer.children).slice(1).forEach(wrapper => wrapper.remove());
+            
+            const lines = rawText.split('\n');
+            let outputHTML = '';
+
+            // DETECTA O TOM DE REFERÊNCIA (CRÍTICO)
+            const keyMatch = rawText.match(/Tom:\s*([A-G][b#]?)/i);
+            if (keyMatch) {
+                let detectedKey = keyMatch[1].trim();
+                initialReferenceKey = detectedKey.length > 1 ? detectedKey : detectedKey.toUpperCase();
+            } else {
+                initialReferenceKey = 'C';
+            }
+            
+            if (!targetKey) {
+                 currentDisplayedKey = initialReferenceKey; 
+            }
+
+            // Acha o índice da primeira linha de conteúdo não vazia (provavelmente o título)
+            const firstContentLineIndex = lines.findIndex(l => l.trim() !== '');
+
+            lines.forEach((line, index) => {
+                const trimmedLine = line.trim();
+                
+                if (trimmedLine === '') {
+                    outputHTML += `<p class="lyric-line" style="margin-bottom: 0.5em;"><br></p>`;
+                    return;
+                }
+
+                CHORD_LINE_CHECK_REGEX.lastIndex = 0;
+                if (CHORD_LINE_CHECK_REGEX.test(trimmedLine)) {
+                    
+                    const processedLine = line.replace(CHORD_REGEX, (match) => {
+                        return `<span class="chord" data-original-chord="${match}">${match}</span>`;
+                    });
+
+                    outputHTML += `<p class="chord-line">${processedLine}</p>`;
+                    
+                } else {
+                    
+                    let classType = 'lyric-line';
+                    
+                    if (index === firstContentLineIndex) {
+                        // Aplica o estilo de título à primeira linha de conteúdo
+                        classType = 'title-line'; 
+                    } else if (line.match(/^(Tom:|Artista)/i)) {
+                        // Outras linhas de metadados
+                        classType = 'header-line';
+                    }
+
+                    outputHTML += `<p class="${classType}">${line}</p>`;
+                }
+            });
+
+            chordSheetContent.innerHTML = outputHTML;
+            document.getElementById('current-displayed-key').textContent = currentDisplayedKey;
+            
+            if (targetKey && targetKey !== initialReferenceKey) {
+                transposeKeyToKey(targetKey);
+            } else {
+                handlePageOverflow(document.getElementById('page-1'));
+            }
+            
+        }
+
+        // ---------------------------------------------------------------- //
+        // CONTROLE DE FLUXO E VISUALIZAÇÃO
+        // ---------------------------------------------------------------- //
+
+        function showRawEditor() {
+            rawEditorModal.style.display = 'flex';
+            rawTextArea.focus();
+        }
+
+        function processRawText() {
+            const rawText = rawTextArea.value;
+            parseAndRenderChordSheet(rawText);
+            rawEditorModal.style.display = 'none';
+            showNotification('Cifra processada com sucesso!', 'success');
+        }
+
+        // ---------------------------------------------------------------- //
+        // FUNÇÕES DE LAYOUT A4
+        // ---------------------------------------------------------------- //
+
+        function handlePageOverflow(currentPage) {
+            const contentWrapper = currentPage.querySelector('#chord-sheet-content, .chord-sheet-content-overflow');
+            if (!contentWrapper) return;
+            
+            if (currentPage.id !== 'page-1') {
+                checkReverseOverflow(currentPage);
+            }
+
+            if (contentWrapper.scrollHeight > contentWrapper.clientHeight) {
+                const maxVisibleHeight = contentWrapper.clientHeight;
+                const children = Array.from(contentWrapper.children);
+                
+                let nodesToMove = [];
+                
+                for (let i = children.length - 1; i >= 0; i--) {
+                    const child = children[i];
+                    
+                    const contentAboveHeight = Array.from(contentWrapper.children).slice(0, i).reduce((sum, el) => sum + el.offsetHeight, 0);
+
+                    if (contentAboveHeight + child.offsetHeight > maxVisibleHeight) {
+                        nodesToMove.unshift(child); 
+                    } else if (i === children.length - 1 && contentAboveHeight + child.offsetHeight > maxVisibleHeight) {
+                        nodesToMove.unshift(child); 
+                    }
+                }
+                
+                if (nodesToMove.length > 0) {
+                    let nextPageWrapper = currentPage.parentElement.nextElementSibling;
+                    let nextPage = nextPageWrapper ? nextPageWrapper.querySelector('.page') : null;
+                    
+                    if (!nextPage) {
+                        const pageCount = editorContainer.children.length + 1;
+                        const newWrapper = document.createElement('div');
+                        newWrapper.className = 'page-wrapper';
+                        newWrapper.innerHTML = `<section class="page" id="page-${pageCount}"><div class="chord-sheet-content-overflow"></div></section>`;
+                        editorContainer.appendChild(newWrapper);
+                        nextPage = document.getElementById(`page-${pageCount}`);
+                    }
+
+                    const nextContent = nextPage.querySelector('.chord-sheet-content-overflow');
+                    
+                    nodesToMove.forEach(node => {
+                        nextContent.prepend(node);
+                    });
+
+                    handlePageOverflow(nextPage);
+                }
+            }
+        }
+        
+        function checkReverseOverflow(currentPage) {
+            const prevWrapper = currentPage.parentElement.previousElementSibling;
+            const prevPage = prevWrapper ? prevWrapper.querySelector('.page') : null;
+            
+            if (!prevPage) return;
+
+            const prevContent = prevPage.querySelector('#chord-sheet-content, .chord-sheet-content-overflow');
+            const currentContent = currentPage.querySelector('.chord-sheet-content-overflow');
+
+            if (!prevContent || !currentContent) return;
+
+            const maxVisibleHeightPrev = prevContent.clientHeight;
+            
+            while (currentContent.firstElementChild) {
+                const firstChild = currentContent.firstElementChild;
+                
+                const tempClone = prevContent.appendChild(firstChild.cloneNode(true));
+                const newPrevHeight = prevContent.scrollHeight;
+                tempClone.remove();
+
+                if (newPrevHeight <= maxVisibleHeightPrev + 5) {
+                    prevContent.appendChild(firstChild);
+                } else {
+                    break; 
+                }
+            }
+            
+            if (currentContent.children.length === 0 && currentPage.id !== 'page-1') {
+                currentPage.parentElement.remove();
+                checkReverseOverflow(prevPage); 
+            }
+        }
+
+        function printDocument() {
+            const toolbarWrapper = document.getElementById('toolbar-wrapper');
+            toolbarWrapper.style.display = 'none';
+
+            window.print();
+
+            setTimeout(() => {
+                toolbarWrapper.style.display = 'flex';
+            }, 500); 
+        }
+
+        // ---------------------------------------------------------------- //
+        // INICIALIZAÇÃO
+        // ---------------------------------------------------------------- //
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadSettings();
+            showRawEditor(); 
+            
+            rawTextArea.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && e.ctrlKey) {
+                    e.preventDefault();
+                    processRawText();
+                }
+            });
+            
+            window.addEventListener('resize', updateRawEditorSize);
+        });
+        
+    </script>
+</body>
+</html>
 
